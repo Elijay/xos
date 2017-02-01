@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+  <head>
+      <style>
+        #greeting{
+          color:red;
+          font-size: 24px;
+          font-weight: 600;
+        }
+      </style>
+  </head>
+  <body>
+    <canvas id="canvas" width="500" height="500"></canvas>
+    <script>
+    (function(){
+
+      function Players(players){
+        this.players = players;
+        this.currentPlayer = players[0];
+      }
+
+      Players.prototype = {
+        constructor : Players,
+        opponent : function(){
+          var cp = this.currentPlayer;
+          var opp = this.players.filter(x => x !== cp);
+          return opp[0];
+        },
+        switchPlayer : function(){
+          this.currentPlayer = this.opponent();
+        }
+      };
+
+      function Player(num, icon){
+        this.num = num;
+        this.icon = icon;
+      }
+
+      function GridSquare(num, coords){
+        this.num = num;
+        this.coords = coords;
+        this.played = false;
+        this.item = "-";
+      }
+
+      GridSquare.prototype = {
+        constructor : GridSquare,
+        containsPoint : function(x,y){
+          if (x >= this.coords[0] && y >= this.coords[1] && x < this.coords[0] + 150 && y < this.coords[1] + 150){
+            return true;
+          } else {
+            return false;
+          }
+        }
+      };
+
+      function Grid(squares){
+        this.squares = squares,
+        this.played = 0
+      }
+
+      Grid.prototype = {
+        constructor : Grid,
+        squaresOfType : function(icon){
+          //collapse to array
+          let allSquares = [].concat(...this.squares);
+          return allSquares.filter(x => x.item === icon);
+        },
+        playSquare : function(square, icon){
+          square.played = true;
+          square.item = icon;
+          this.played += 1;
+        },
+        getGridPosition : function(square){
+          var coords = [];
+          var breakout = false;
+          var icon = square.item;
+
+          //get index of square
+          for(var a = 0; a < this.squares.length; a++){
+            for(var b = 0; b < this.squares.length; b++){
+               if (this.squares[a][b] == square){
+                 coords = [a,b];
+                 breakout = true;
+                 break;
+               }
+            }
+            if (breakout){
+              break;
+            }
+          }
+
+          if (coords.length == 0){
+            return nothing;
+          }
+          return coords;
+        },
+        getAdjacentSquares : function(square){
+
+          var coords = this.getGridPosition(square);
+
+          //fill with square, transformation
+          var adjSquares = [];
+
+          //get adjacent squares
+          for (var i = - 1; i < 2; i++){
+
+            var row = coords[0] + i;
+            // does this row exist?
+            if (row >= 0 && row < this.squares.length){
+              for (var j = - 1; j < 2; j++){
+                var col = coords[1] + j;
+                // does this column exist?
+                if (col >= 0 && col < this.squares[row].length && this.squares[row][col] != square){
+                  adjSquares.push([this.squares[row][col], [i,j]]);
+                }
+              }
+            }
+
+          }
+
+          return adjSquares;
+
+        }
+
+      };
+
+      var canvas = document.getElementById("canvas"),
+      context = canvas.getContext("2d"),
+      gridSquares = new Grid([
+      [
+        new GridSquare(1,[25,25]),
+        new GridSquare(2,[175,25]),
+        new GridSquare(3,[325,25])
+      ],
+      [
+        new GridSquare(4,[25,175]),
+        new GridSquare(5,[175,175]),
+        new GridSquare(6,[325,175])
+      ],
+      [ new GridSquare(7,[25,325]),
+        new GridSquare(8,[175,325]),
+        new GridSquare(9,[325,325])
+      ]
+      ]),
+      players = new Players([new Player(1,"x"), new Player(2, "o")]);
+
+      function isWinningSquare(square, icon){
+        var adjSquares = gridSquares.getAdjacentSquares(square);
+        var nextMatches = adjSquares.filter(x => x[0].item == icon);
+
+        //apply same transformation to new squares
+        var thirdSquares = [];
+        nextMatches.forEach(function(m){
+            var transformation = m[1];
+
+            var currentSquare = m[0];
+
+            var currentIndices = gridSquares.getGridPosition(currentSquare);
+
+            var newRow = currentIndices[0] + transformation[0];
+            var newCol = currentIndices[1] + transformation[1];
+
+            if (newRow >= 0 && newRow < gridSquares.squares.length && newCol >= 0 && newCol < gridSquares.squares[0].length){
+              thirdSquares.push(gridSquares.squares[newRow][newCol]);
+            } else{
+              newRow = currentIndices[0] - (2 * transformation[0]);
+              newCol = currentIndices[1] - (2 * transformation[1]);
+              if (newRow >= 0 && newRow < gridSquares.squares.length && newCol >= 0 && newCol < gridSquares.squares[0].length){
+                thirdSquares.push(gridSquares.squares[newRow][newCol]);
+              }
+            }
+        });
+
+        var winningSquares = thirdSquares.filter(x => x.item == icon);
+
+        if (winningSquares.length > 0){
+          return true;
+        } else {
+          return false;
+        }
+
+      }
+
+      function getSquareClicked(x,y){
+        var elems = [];
+        gridSquares.squares.forEach(function(row){
+          row.forEach(function(sq){
+             if (sq.containsPoint(x,y)){
+                elems.push(sq);
+             }
+          });
+        });
+        return elems[0];
+      }
+
+      function computerTurn(){
+
+        // make three
+        var blanks = gridSquares.squaresOfType("-");
+        var comp = players.currentPlayer;
+        var turn = false;
+        var opponent = players.opponent();
+        var endGame = false;
+
+        for(var i=0; i < blanks.length; i++){
+          var item = blanks[i];
+          if(isWinningSquare(item, comp.icon)){
+            gridSquares.playSquare(item, comp.icon);
+            drawIcon(item, comp.icon);
+            turn = true;
+            endGame = checkWinner(item, comp.icon);
+            break;
+          }
+
+        };
+
+        if (!turn){
+          for(var j=0; j < blanks.length; j++){
+            item = blanks[j];
+            if(isWinningSquare(item, opponent.icon)) {
+              gridSquares.playSquare(item, comp.icon);
+              drawIcon(item, comp.icon);
+              turn = true;
+              endGame = checkWinner(item, comp.icon);
+              break;
+            }
+          };
+        }
+
+        if (!turn){
+          // play any empty square
+          var randomSquare = blanks[Math.floor(Math.random() * blanks.length)];
+          gridSquares.playSquare(randomSquare, comp.icon);
+          drawIcon(randomSquare, comp.icon);
+          endGame = checkWinner(randomSquare, comp.icon);
+        }
+
+        if (!endGame){
+          players.switchPlayer();
+          drawPlayer(players.currentPlayer);
+        }
+      }
+
+      //handle click events on canvas
+      canvas.addEventListener('click', playTurn);
+
+      function playTurn(event){
+        // get coordinates clicked
+        var xEvent = event.pageX - canvas.offsetLeft,
+        yEvent = event.pageY - canvas.offsetTop;
+
+        // translate to a square
+        var square = getSquareClicked(xEvent, yEvent);
+
+        if (square){
+
+           if (square.played){
+             alert('Please choose a free square');
+           } else {
+
+            var icon = players.currentPlayer.icon;
+            var won = false;
+
+            gridSquares.playSquare(square, icon);
+            drawIcon(square, icon);
+
+            if (!checkWinner(square, icon)){
+
+              players.switchPlayer();
+              drawPlayer(players.currentPlayer);
+              computerTurn();
+
+            }
+
+          }
+
+        }
+
+      }
+
+      function checkWinner(square, icon){
+        if (isWinningSquare(square, icon)){
+
+          alert('congratulations player ' + players.currentPlayer.num + ' wins');
+          canvas.removeEventListener('click', playTurn);
+          return true;
+
+        }else if(gridSquares.played === 9){
+
+          alert('Not impressive - noone won');
+          canvas.removeEventListener('click', playTurn);
+          return true;
+
+        };
+
+        return false;
+
+      }
+
+      function drawGrid(){
+            context.beginPath();
+            context.moveTo(175,25);
+            context.lineTo(175, 475);
+            context.moveTo(325, 25);
+            context.lineTo(325, 475);
+            context.moveTo(25, 175);
+            context.lineTo(475, 175);
+            context.moveTo(25, 325);
+            context.lineTo(475, 325);
+            context.stroke();
+      }
+
+      function drawCross(x,y,width){
+        context.beginPath();
+        context.moveTo(x + 25, y + 25);
+        context.lineTo(x + width - 25, y + width - 25);
+        context.moveTo(x + width - 25, y + 25);
+        context.lineTo(x + 25, y + width - 25);
+        context.stroke();
+      }
+
+      function drawNaught(x,y,width){
+        //assumes a square grid
+        context.beginPath();
+        context.arc((width / 2) + x, (width / 2) + y , (width - 50) / 2, 0, 2 * Math.PI, false);
+        context.stroke();
+      }
+
+      function drawIcon(square, icon){
+        switch (icon){
+          case "x":
+            drawCross(square.coords[0],square.coords[1], 150);
+            break;
+
+          case "o":
+            drawNaught(square.coords[0],square.coords[1],150);
+            break;
+        }
+      }
+
+      function drawPlayer(player){
+        context.clearRect(0, 480, canvas.width,10);
+        context.font ="14px Verdana";
+        context.fillStyle ="#000";
+        context.textAlign = "center";
+        var msg = "player" + player.num;
+        context.fillText(msg, 250, 490);
+      }
+
+      drawGrid();
+      drawPlayer(players.currentPlayer);
+
+    })();
+    </script>
+  </body>
+</html>
