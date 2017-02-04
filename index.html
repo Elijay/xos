@@ -6,10 +6,27 @@
           font-size: 24px;
           font-weight: 600;
         }
+        #wrapper{
+          position:relative;
+
+          margin:0 auto;
+        }
+        canvas{
+          position:absolute;
+          top:0;
+          left:0;
+          z-index:100;
+        }
+        canvas.front{
+          z-index:200;
+        }
       </style>
   </head>
   <body>
-    <canvas id="canvas" width="500" height="500"></canvas>
+    <div id="wrapper">
+        <canvas id="canvas" width="500" height="500" class="front"></canvas>
+        <canvas id="msg-canvas" width="500" height="500"></canvas>
+    </div>
     <script>
     (function(){
 
@@ -55,11 +72,15 @@
 
       function Grid(squares){
         this.squares = squares,
-        this.played = 0
+        this.played = 0,
+        this.reset = squares
       }
 
       Grid.prototype = {
         constructor : Grid,
+        resetGrid : function(){
+          this.squares = this.reset;
+        },
         squaresOfType : function(icon){
           //collapse to array
           let allSquares = [].concat(...this.squares);
@@ -125,24 +146,12 @@
       };
 
       var canvas = document.getElementById("canvas"),
+      msgCanvas = document.getElementById("msg-canvas"),
       context = canvas.getContext("2d"),
-      gridSquares = new Grid([
-      [
-        new GridSquare(1,[25,25]),
-        new GridSquare(2,[175,25]),
-        new GridSquare(3,[325,25])
-      ],
-      [
-        new GridSquare(4,[25,175]),
-        new GridSquare(5,[175,175]),
-        new GridSquare(6,[325,175])
-      ],
-      [ new GridSquare(7,[25,325]),
-        new GridSquare(8,[175,325]),
-        new GridSquare(9,[325,325])
-      ]
-      ]),
-      players = new Players([new Player(1,"x"), new Player(2, "o")]);
+      msgContext = msgCanvas.getContext("2d"),
+      runGame = false,
+      gridSquares,
+      players;
 
       function isWinningSquare(square, icon){
         var adjSquares = gridSquares.getAdjacentSquares(square);
@@ -195,7 +204,11 @@
 
       function computerTurn(){
 
-        // make three
+        // logic in this order:
+        // Win if possible
+        // Stop opponent winning
+        // play random empty square
+
         var blanks = gridSquares.squaresOfType("-");
         var comp = players.currentPlayer;
         var turn = false;
@@ -241,8 +254,16 @@
         }
       }
 
-      //handle click events on canvas
-      canvas.addEventListener('click', playTurn);
+      function keyPressed(e){
+
+        var keyD = e.keyCode;
+
+        if (!runGame){
+            if (keyD == 32){
+             startGame();
+            }
+        }
+      }
 
       function playTurn(event){
         // get coordinates clicked
@@ -268,8 +289,7 @@
 
               players.switchPlayer();
               drawPlayer(players.currentPlayer);
-              computerTurn();
-
+              window.setTimeout(computerTurn, 3000);
             }
 
           }
@@ -280,15 +300,13 @@
 
       function checkWinner(square, icon){
         if (isWinningSquare(square, icon)){
-
-          alert('congratulations player ' + players.currentPlayer.num + ' wins');
-          canvas.removeEventListener('click', playTurn);
+          canvas.removeEventListener("click", playTurn);
+          showMessage('congratulations player ' + players.currentPlayer.num + ' wins');
           return true;
 
         }else if(gridSquares.played === 9){
-
-          alert('Not impressive - noone won');
-          canvas.removeEventListener('click', playTurn);
+          canvas.removeEventListener("click", playTurn);
+          showMessage('Not impressive - noone won');
           return true;
 
         };
@@ -347,8 +365,61 @@
         context.fillText(msg, 250, 490);
       }
 
-      drawGrid();
-      drawPlayer(players.currentPlayer);
+      function showMessage(message){
+        msgContext.clearRect(0, 0, msgCanvas.width, msgCanvas.height);
+
+        //paint background
+        msgContext.fillStyle = "rgba(213, 255, 12, 0.9)";
+        msgContext.fillRect(0, 100, msgCanvas.width, msgCanvas.height - 200);
+
+        //bring message canvas to front
+        msgCanvas.className += " front";
+        canvas.className = canvas.className.replace("front","");
+
+        //paint text
+        msgContext.textAlign = "center";
+        msgContext.font = "20px Verdana";
+        msgContext.fillStyle = "#000";
+        msgContext.fillText(message, 250, 250);
+
+        document.addEventListener("keydown", keyPressed);
+      }
+
+      function startGame(){
+
+        gridSquares = new Grid([
+        [
+          new GridSquare(1,[25,25]),
+          new GridSquare(2,[175,25]),
+          new GridSquare(3,[325,25])
+        ],
+        [
+          new GridSquare(4,[25,175]),
+          new GridSquare(5,[175,175]),
+          new GridSquare(6,[325,175])
+        ],
+        [ new GridSquare(7,[25,325]),
+          new GridSquare(8,[175,325]),
+          new GridSquare(9,[325,325])
+        ]
+        ]),
+        players = new Players([new Player(1,"x"), new Player(2, "o")]),
+        msgContext.clearRect(0, 0, msgCanvas.width, msgCanvas.height);
+        context.clearRect(0, 0, canvas.width, canvas.height);
+
+        gridSquares.resetGrid();
+        drawGrid();
+        drawPlayer(players.currentPlayer);
+
+        msgCanvas.className = msgCanvas.className.replace("front","");
+        canvas.className += " front";
+        canvas.addEventListener('click', playTurn);
+      }
+
+      //drawGrid();
+      //drawPlayer(players.currentPlayer);
+
+     showMessage("PRESS SPACEBAR TO START");
 
     })();
     </script>
